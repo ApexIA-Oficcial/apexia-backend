@@ -1,34 +1,31 @@
+// Arquivo: api/mentor.js
 export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
+    // 1. Configurar o CORS (Para o GitHub Pages conseguir falar com o Vercel)
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-  try {
-    const { prompt } = req.body;
-
-    if (!prompt) {
-      return res.status(400).json({ error: 'Prompt vazio' });
+    if (req.method === 'OPTIONS') {
+        return res.status(200).end();
     }
 
-    const response = await fetch(
-      'https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key=' + process.env.GEMINI_API_KEY,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }]
-        })
-      }
-    );
+    const { prompt } = req.body;
+    const API_KEY = process.env.GEMINI_API_KEY; // <--- Bate com a sua foto!
 
-    const data = await response.json();
+    try {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: prompt }] }]
+            })
+        });
 
-    const text =
-      data?.candidates?.[0]?.content?.parts?.[0]?.text ||
-      'Sem resposta do mentor no momento.';
+        const data = await response.json();
+        const reply = data.candidates[0].content.parts[0].text;
 
-    res.status(200).json({ reply: text });
-  } catch (err) {
-    res.status(500).json({ error: 'Erro interno do mentor' });
-  }
+        return res.status(200).json({ reply });
+    } catch (error) {
+        return res.status(500).json({ error: 'Erro ao processar IA no Backend' });
+    }
 }
