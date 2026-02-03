@@ -13,7 +13,7 @@ export default async function handler(req, res) {
     }
 
     if (!req.body || !req.body.prompt) {
-        return res.status(400).json({ error: 'Prompt vazio ou inválido' });
+        return res.status(400).json({ error: 'Prompt inválido' });
     }
 
     const { prompt } = req.body;
@@ -21,7 +21,7 @@ export default async function handler(req, res) {
 
     try {
         const response = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.0-pro:generateContent?key=${API_KEY}`,
+            `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-latest:generateContent?key=${API_KEY}`,
             {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
