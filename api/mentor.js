@@ -8,7 +8,6 @@ export default async function handler(req, res) {
         return res.status(200).end();
     }
 
-    // 2. Verificar se o corpo da requisição existe
     if (!req.body || !req.body.prompt) {
         return res.status(400).json({ error: 'Corpo da requisição inválido ou prompt vazio' });
     }
@@ -17,7 +16,7 @@ export default async function handler(req, res) {
     const API_KEY = process.env.GEMINI_API_KEY;
 
     try {
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${API_KEY}`;
 
         const response = await fetch(url, {
             method: 'POST',
@@ -33,7 +32,10 @@ export default async function handler(req, res) {
             return res.status(500).json({ error: data.error.message });
         }
 
-        const text = data.candidates?.[0]?.content?.parts?.[0]?.text || 'Sem resposta.';
+        const text =
+            data?.candidates?.[0]?.content?.parts?.[0]?.text ||
+            'Sem resposta do Mentor ApexiA.';
+
         return res.status(200).json({ reply: text });
 
     } catch (err) {
