@@ -5,12 +5,12 @@ export default async function handler(req, res) {
 
     if (req.method === 'OPTIONS') return res.status(200).end();
     
-    const { prompt, image, accessToken, videoId } = req.body; // Recebemos o Token e o ID do Vídeo
+    const { prompt, image, accessToken, videoId } = req.body;
     const API_KEY = process.env.GEMINI_API_KEY;
 
-    let dadosRetencao = "Nenhum dado de retenção disponível.";
+    let dadosAuditoria = "";
 
-    // 🚀 BLOCO MÍNIMO: CHAMADA REAL AO ANALYTICS API
+    // 🚀 BLOCO DE OURO: AUDITORIA REAL NO BACKEND
     if (accessToken && videoId) {
         try {
             const hoje = new Date().toISOString().split('T')[0];
@@ -22,32 +22,28 @@ export default async function handler(req, res) {
             const analyticsData = await analyticsRes.json();
 
             if (analyticsData.rows && analyticsData.rows.length > 0) {
-                const row = analyticsData.rows[0];
-                dadosRetencao = `
-                📊 DADOS REAIS DE PERFORMANCE (API):
-                - Views: ${row[1]}
-                - Duração Média de Visualização: ${row[2]} segundos
-                - Porcentagem Média de Retenção: ${row[3]}%
-                - Impressões: ${row[4]}
-                - CTR de Impressões: ${row[5]}%
-                `;
+                const s = analyticsData.rows[0];
+                dadosAuditoria = `\n\n--- DADOS REAIS DE AUDITORIA DO VÍDEO SELECIONADO ---\n` +
+                                `- Visualizações: ${s[1]}\n` +
+                                `- Retenção Média: ${s[3]}%\n` +
+                                `- CTR Real: ${s[5]}%\n` +
+                                `--- FIM DO RELATÓRIO TÉCNICO ---`;
             }
         } catch (e) {
-            console.error("Erro ao acessar Analytics API:", e);
+            console.error("Erro no Analytics API");
         }
     }
 
     try {
-        // --- CONFIGURAÇÃO DO MODELO ---
         const listUrl = `https://generativelanguage.googleapis.com/v1beta/models?key=${API_KEY}`;
         const listRes = await fetch(listUrl);
         const listData = await listRes.json();
         const modelName = listData.models?.find(m => m.supportedGenerationMethods.includes("generateContent")).name;
 
-        // INJETANDO A VERDADE NO PROMPT
-        const promptFinal = `${prompt}\n\n${dadosRetencao}`;
+        // Injeta a auditoria no prompt final
+        const finalPromptWithData = `${prompt}\n${dadosAuditoria}`;
 
-        let contents = [{ parts: [{ text: promptFinal }] }];
+        let contents = [{ parts: [{ text: finalPromptWithData }] }];
         if (image) contents[0].parts.push({ inline_data: { mime_type: "image/jpeg", data: image } });
 
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/${modelName}:generateContent?key=${API_KEY}`, {
@@ -57,7 +53,8 @@ export default async function handler(req, res) {
         });
 
         const data = await response.json();
-        return res.status(200).json({ reply: data.candidates?.[0]?.content?.parts?.[0]?.text || "IA sem resposta." });
+        const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || "IA sem resposta.";
+        return res.status(200).json({ reply });
 
     } catch (err) {
         return res.status(500).json({ error: err.message });
