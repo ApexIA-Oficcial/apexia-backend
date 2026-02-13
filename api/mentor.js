@@ -1,77 +1,72 @@
 export default async function handler(req, res) {
-    // 1. Configuração de Segurança (CORS) - MANTIDO
+    // 1. Configurar Permissões (CORS)
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
     if (req.method === 'OPTIONS') return res.status(200).end();
-    if (req.method !== 'POST') return res.status(405).json({ error: 'Método não permitido' });
+
+    // 🛡️ SEGURANÇA RESTAURADA: Verifica se o método é POST
+    if (req.method !== 'POST') {
+        return res.status(405).json({ error: 'Método não permitido. Use POST.' });
+    }
 
     const { prompt, image, accessToken, videoId } = req.body;
     const API_KEY = process.env.GEMINI_API_KEY;
 
-    if (!API_KEY) return res.status(500).json({ reply: "Erro: GEMINI_API_KEY não configurada." });
+    // 🛡️ SEGURANÇA RESTAURADA: Verifica se a chave existe no servidor
+    if (!API_KEY) {
+        return res.status(500).json({ reply: "🚨 ERRO CRÍTICO: GEMINI_API_KEY não configurada no Vercel." });
+    }
 
     let relatorioTecnicoOficial = "";
     const hoje = new Date().toISOString().split('T')[0];
     const dataInicio = "2020-01-01";
 
-    // 🚀 MOTOR 1: AUDITORIA ESPECÍFICA DE VÍDEO (MANTIDO E INTEGRADO)
-    if (accessToken && videoId) {
-        try {
-            const analyticsUrl = `https://youtubeanalytics.googleapis.com/v2/reports?ids=channel==MINE&startDate=${dataInicio}&endDate=${hoje}&metrics=views,averageViewDuration,averageViewPercentage,impressions,impressionsCtr&dimensions=video&filters=video==${videoId}`;
-            const analyticsRes = await fetch(analyticsUrl, {
-                headers: { 'Authorization': `Bearer ${accessToken}`, 'Accept': 'application/json' }
-            });
-            const analyticsData = await analyticsRes.json();
-
-            if (analyticsData.rows && analyticsData.rows.length > 0) {
-                const row = analyticsData.rows[0];
-                relatorioTecnicoOficial += `
-                \n--- [DADOS TÉCNICOS DO VÍDEO SELECIONADO] ---
-                📊 Visualizações: ${row[1]}
-                ⏱️ Retenção (Segundos): ${row[2]}
-                📉 Retenção (%): ${row[3]}%
-                👁️ Impressões: ${row[4]}
-                🎯 CTR do Vídeo: ${row[5]}%
-                --------------------------------------------\n`;
-            }
-        } catch (e) { console.error("Erro Video Analytics"); }
-    }
-
-    // 🚀 MOTOR 2: DADOS GERAIS DO CANAL (ADICIONADO - SÓ ATIVA SE TIVER TOKEN)
     if (accessToken) {
         try {
-            const canalUrl = `https://youtubeanalytics.googleapis.com/v2/reports?ids=channel==MINE&startDate=${dataInicio}&endDate=${hoje}&metrics=views,estimatedMinutesWatched,averageViewDuration,averageViewPercentage,subscribersGained,subscribersLost,impressions,impressionsCtr`;
-            const canalRes = await fetch(canalUrl, {
-                headers: { 'Authorization': `Bearer ${accessToken}`, 'Accept': 'application/json' }
-            });
-            const canalData = await canalRes.json();
+            // 🔎 BUSCA TÍTULO REAL DO VÍDEO (Data API)
+            if (videoId) {
+                const videoRes = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${videoId}`, {
+                    headers: { 'Authorization': `Bearer ${accessToken}` }
+                });
+                const videoData = await videoRes.json();
+                if (videoData.items?.[0]) {
+                    relatorioTecnicoOficial += `\n🎯 VÍDEO EM ANÁLISE: ${videoData.items[0].snippet.title}\n`;
+                }
 
-            if (canalData.rows && canalData.rows.length > 0) {
-                const row = canalData.rows[0];
-                relatorioTecnicoOficial += `
-                \n--- [PERFORMANCE GERAL DO CANAL (HISTÓRICO)] ---
-                📈 Views Totais: ${row[0]}
-                ⏳ Watch Time (Min): ${row[1]}
-                📉 Retenção Média do Canal: ${row[3]}%
-                👥 Inscritos Ganhos: ${row[4]}
-                💔 Inscritos Perdidos: ${row[5]}
-                👁️ Impressões Totais: ${row[6]}
-                🎯 CTR Médio do Canal: ${row[7]}%
-                ----------------------------------------------\n`;
+                // 📊 ANALYTICS DO VÍDEO ESPECÍFICO
+                const analyticsUrl = `https://youtubeanalytics.googleapis.com/v2/reports?ids=channel==MINE&startDate=${dataInicio}&endDate=${hoje}&metrics=views,averageViewDuration,averageViewPercentage,impressions,impressionsCtr&dimensions=video&filters=video==${videoId}`;
+                const aRes = await fetch(analyticsUrl, { headers: { 'Authorization': `Bearer ${accessToken}`, 'Accept': 'application/json' } });
+                const aData = await aRes.json();
+                if (aData.rows?.[0]) {
+                    const r = aData.rows[0];
+                    relatorioTecnicoOficial += `📈 MÉTRICAS DO VÍDEO: Views: ${r[1]}, Retenção: ${r[3]}%, CTR: ${r[5]}%\n`;
+                }
             }
-        } catch (e) { console.error("Erro Canal Analytics"); }
+
+            // 📊 ANALYTICS GERAL DO CANAL (Sempre presente)
+            const canalUrl = `https://youtubeanalytics.googleapis.com/v2/reports?ids=channel==MINE&startDate=${dataInicio}&endDate=${hoje}&metrics=views,estimatedMinutesWatched,averageViewDuration,averageViewPercentage,subscribersGained,subscribersLost,impressions,impressionsCtr`;
+            const cRes = await fetch(canalUrl, { headers: { 'Authorization': `Bearer ${accessToken}`, 'Accept': 'application/json' } });
+            const cData = await cRes.json();
+            if (cData.rows?.[0]) {
+                const c = cData.rows[0];
+                relatorioTecnicoOficial += `\n🌍 STATUS GERAL DO CANAL: Total Views: ${c[0]}, Retenção Média: ${c[3]}%, CTR Médio: ${c[7]}%, Inscritos Ganhos: ${c[4]}\n`;
+            }
+        } catch (e) { 
+            console.error("Falha ao coletar dados do YouTube");
+            relatorioTecnicoOficial += "\n(Alguns dados do YouTube não puderam ser carregados)\n";
+        }
     }
 
-    // 🚀 MOTOR 3: INTELIGÊNCIA ARTIFICIAL (GEMINI) - MANTIDO
+    // 🧠 INTELIGÊNCIA ARTIFICIAL (GEMINI)
     try {
         const listUrl = `https://generativelanguage.googleapis.com/v1beta/models?key=${API_KEY}`;
         const listRes = await fetch(listUrl);
         const listData = await listRes.json();
         const modelName = listData.models?.find(m => m.supportedGenerationMethods.includes("generateContent")).name;
 
-        const promptFinal = `${prompt}\n\n${relatorioTecnicoOficial}\n\nInstrução: Use os dados acima para dar um diagnóstico de Growth Real.`;
+        const promptFinal = `${prompt}\n\n${relatorioTecnicoOficial}`;
         
         let contents = [{ parts: [{ text: promptFinal }] }];
         if (image) contents[0].parts.push({ inline_data: { mime_type: "image/jpeg", data: image } });
@@ -83,9 +78,9 @@ export default async function handler(req, res) {
         });
 
         const data = await response.json();
-        return res.status(200).json({ reply: data.candidates?.[0]?.content?.parts?.[0]?.text || "IA sem resposta." });
+        return res.status(200).json({ reply: data.candidates?.[0]?.content?.parts?.[0]?.text || "IA sem resposta. Tente novamente." });
 
     } catch (err) {
-        return res.status(500).json({ error: err.message });
+        return res.status(500).json({ reply: "Erro de conexão com o motor da ApexiA. Verifique a VPN." });
     }
 }
